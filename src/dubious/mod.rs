@@ -78,6 +78,9 @@
 //! ```
 
 pub(crate) mod ops;
+pub(crate) mod validate;
+
+use validate::Validate;
 
 /// The `Dubious` type. See [the module level documentation](self) for more.
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
@@ -109,14 +112,6 @@ impl<T> Dubious<T> {
         F: FnOnce(T) -> U,
     {
         Dubious(f(self.0))
-    }
-
-    #[inline]
-    pub fn then<U, F>(self, f: F) -> Dubious<U>
-    where
-        F: FnOnce(T) -> Dubious<U>,
-    {
-        f(self.0)
     }
 
     /// Zips `self` with another `Dubious`.
@@ -159,13 +154,6 @@ impl<T> Dubious<Dubious<T>> {
     }
 }
 
-impl<T> From<T> for Dubious<T> {
-    #[inline]
-    fn from(x: T) -> Dubious<T> {
-        Dubious(x)
-    }
-}
-
 impl<T> Dubious<Option<T>> {
     /// Converts from `Dubious<Option<T>>` to `Option<Dubious<T>>`.
     ///
@@ -198,45 +186,16 @@ where
     }
 }
 
-impl<T: PartialEq> PartialEq<T> for Dubious<T> {
-    fn eq(&self, other: &T) -> bool {
-        self.0 == *other
+impl<T> From<T> for Dubious<T> {
+    #[inline]
+    fn from(x: T) -> Dubious<T> {
+        Dubious(x)
     }
 }
 
-/// Fallible validation of values.
-///
-/// `Ok` is the type returned when validation is successful. Note that `Ok` is
-/// `Self` by default, but this is not mandatory.
-pub trait Validate<Ok = Self> {
-    /// The type returned in the event of a validation error.
-    type Error;
-
-    /// Performs the validation.
-    fn validate(self) -> Result<Ok, Self::Error>;
-
-    /// Converts `self` into an [`Option<Ok>`] by consuming and validating
-    /// `self`, and discarding the error, if any.
-    ///
-    /// Returns [`Some`] if `self` is valid, otherwise [`None`].
-    #[inline]
-    fn ok(self) -> Option<Ok>
-    where
-        Self: Sized, // TODO: remove this restriction
-    {
-        self.validate().ok()
-    }
-
-    /// Converts `self` into an [`Option<E>`] by consuming and validating
-    /// `self`, and discarding the success value, if any.
-    ///
-    /// Returns [`Some`] if `self` is invalid, otherwise [`None`].
-    #[inline]
-    fn err(self) -> Option<Self::Error>
-    where
-        Self: Sized, // TODO: remove this restriction
-    {
-        self.validate().err()
+impl<T: PartialEq> PartialEq<T> for Dubious<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.0 == *other
     }
 }
 
