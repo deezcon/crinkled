@@ -48,6 +48,15 @@ impl<T> Dubious<T> {
         Dubious(value)
     }
 
+    /// TODO: doc
+    #[inline]
+    pub fn and_then<U, F>(self, f: F) -> Dubious<U>
+    where
+        F: FnOnce(T) -> Dubious<U>,
+    {
+        f(self.0)
+    }
+
     /// Maps a `Dubious<T>` to `Dubious<U>` by applying a function to a
     /// contained value.
     #[inline]
@@ -176,7 +185,7 @@ impl<T: PartialEq> PartialEq<T> for Dubious<T> {
     }
 }
 
-pub trait DubiousMarker {}
+pub(crate) trait DubiousMarker {}
 
 impl<T> DubiousMarker for Dubious<T> {}
 
