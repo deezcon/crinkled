@@ -1,13 +1,13 @@
 //! Dubious values.
 //!
-//! [`Dubious`] is a zero-cost wrapper around a value that indicates:
+//! [`Dubious`] is a zero-cost wrapper around a value for use when:
 //! - There exists some invalid states of the contained value.
 //! - Those invalid states *must* be checked before the value can be used
 //!   elsewhere.
 //! - There is nothing inherently incorrect with operating on a value with an
 //!   invalid state.
 //!
-//! TODO: give a bit more on type-theory explination.
+//! TODO: give a bit more on type-theory explination?
 //! For my type theorists out there: [`Dubious`] is a monad. Within a
 //! [`Dubious`] you can treat ts value as if it were valid.
 //!
@@ -30,57 +30,13 @@
 //!
 //! To make the most use of the [`Dubious`] type, wrap the scrutinee in a
 //! newtype and use that as the expected type throughout your code. In our float
-//! example, we might create a `Scalar` type that wraps `f64`. Below is an
-//! example that demonstrates a similar concept, with the constraint being only
-//! positive `f64`s are desired.
-//!
-//! ```
-//! use crinkled::dubious::{Dubious, Validate};
-//! use std::borrow::Borrow;
-//! use std::ops::Sub;
-//!
-//! /// An f64 that is >= 0.0
-//! #[derive(Clone, Copy, Debug, PartialEq)]
-//! struct Positive(f64);
-//!
-//! impl Positive {
-//!     fn dubious(value: f64) -> Dubious<Positive> {
-//!         Dubious::new(Positive(value))
-//!     }
-//! }
-//!
-//! impl Validate for Positive {
-//!     type Error = (); // keeping it simple here
-//!
-//!     fn validate(self) -> Result<Self, Self::Error> {
-//!         if self.0 >= 0.0 {
-//!             Ok(self)
-//!         } else {
-//!             Err(())
-//!         }
-//!     }
-//! }
-//!
-//! impl Sub for Positive {
-//!     type Output = Self;
-//!
-//!     fn sub(self, rhs: Self) -> Self::Output {
-//!         Positive(self.0 - rhs.0)
-//!     }
-//! }
-//!
-//! let a = Positive::dubious(524.0) - Positive::dubious(104.0);
-//! assert_eq!(a.ok(), Some(Positive(420.0)));
-//! assert_eq!(a, Positive(420.0)); // you can also compare Dubious<T> to T
-//!
-//! let b = a - Positive::dubious(600.0);
-//! assert_eq!(b.validate(), Err(()));
-//! ```
+//! example, we might create a `Scalar` type that wraps `f64`.
 
-pub(crate) mod ops;
-pub(crate) mod validate;
+#[cfg(feature = "forward-ops")]
+pub mod ops;
+pub mod validate;
 
-use validate::Validate;
+pub use validate::Validate;
 
 /// The `Dubious` type. See [the module level documentation](self) for more.
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
@@ -90,6 +46,16 @@ impl<T> Dubious<T> {
     #[inline]
     pub const fn new(value: T) -> Dubious<T> {
         Dubious(value)
+    }
+
+    /// Maps a `Dubious<T>` to `Dubious<U>` by applying a function to a
+    /// contained value.
+    #[inline]
+    pub fn map<U, F>(self, f: F) -> Dubious<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Dubious(f(self.0))
     }
 
     /// Validate the `Dubious<T>` with the function.
@@ -104,16 +70,6 @@ impl<T> Dubious<T> {
         f(self.0)
     }
 
-    /// Maps a `Dubious<T>` to `Dubious<U>` by applying a function to a
-    /// contained value.
-    #[inline]
-    pub fn map<U, F>(self, f: F) -> Dubious<U>
-    where
-        F: FnOnce(T) -> U,
-    {
-        Dubious(f(self.0))
-    }
-
     /// Zips `self` with another `Dubious`.
     ///
     /// ---
@@ -126,9 +82,6 @@ impl<T> Dubious<T> {
     /// Zips `self` and another `Dubious` with function `f`. `zip_with` is
     /// semantically equivalent [`zip`]ing, and then [`map`]ing as in
     /// `self.zip(other).map(f)`.
-    ///
-    /// # Examples
-    /// Basic usage: TODO
     ///
     /// ---
     /// *Neither `self` nor `other` is validated.*
@@ -157,6 +110,18 @@ impl<T> Dubious<Dubious<T>> {
 impl<T> Dubious<Option<T>> {
     /// Converts from `Dubious<Option<T>>` to `Option<Dubious<T>>`.
     ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// use crinkled::dubious::Dubious;
+    ///
+    /// let foo = Dubious::new(Some("foo"));
+    /// assert_eq!(foo.invert(), Some(Dubious::new("foo")));
+    ///
+    /// let bar: Dubious<Option<&str>> = Dubious::new(None);
+    /// assert_eq!(bar.invert(), None);
+    /// ```
+    /// ---
     /// *There is currently no method for the inverse `Option<Dubious<T>>` to
     /// `Dubious<Option<T>>`.*
     // --- dev notes ---
@@ -186,6 +151,18 @@ where
     }
 }
 
+impl<T> Validate<T> for Dubious<T>
+where
+    T: Validate<T>,
+{
+    type Error = T::Error;
+
+    #[inline]
+    fn validate(self) -> Result<T, Self::Error> {
+        self.0.validate()
+    }
+}
+
 impl<T> From<T> for Dubious<T> {
     #[inline]
     fn from(x: T) -> Dubious<T> {
@@ -196,18 +173,6 @@ impl<T> From<T> for Dubious<T> {
 impl<T: PartialEq> PartialEq<T> for Dubious<T> {
     fn eq(&self, other: &T) -> bool {
         self.0 == *other
-    }
-}
-
-impl<T> Validate<T> for Dubious<T>
-where
-    T: Validate<T>,
-{
-    type Error = T::Error;
-
-    #[inline]
-    fn validate(self) -> Result<T, Self::Error> {
-        self.0.validate()
     }
 }
 
