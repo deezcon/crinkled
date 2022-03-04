@@ -176,6 +176,10 @@ impl<T: PartialEq> PartialEq<T> for Dubious<T> {
     }
 }
 
+pub trait DubiousMarker {}
+
+impl<T> DubiousMarker for Dubious<T> {}
+
 // /// The `Almost` type. See [the module level documentation](self) for more.
 // #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 // pub struct Almost<T> {
