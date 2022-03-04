@@ -91,9 +91,9 @@ impl<T> Dubious<T> {
     #[inline]
     pub fn zip_with<U, F, R>(self, other: Dubious<U>, f: F) -> Dubious<R>
     where
-        F: FnOnce((T, U)) -> R,
+        F: FnOnce(T, U) -> R,
     {
-        Dubious(f((self.0, other.0)))
+        Dubious(f(self.0, other.0))
     }
 }
 
